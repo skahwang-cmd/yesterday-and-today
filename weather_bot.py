@@ -4,8 +4,8 @@ import os
 import time
 
 def get_weather_info():
+    # 서울 좌표
     lat, lon = 37.5665, 126.978
-    # weather_code를 추가로 요청함
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FSeoul&past_days=1"
     
     for i in range(3):
@@ -27,34 +27,38 @@ def get_weather_info():
             else: raise e
 
 def get_weather_emoji(code):
-    """날씨 코드에 따른 이모지 반환 로직"""
+    """날씨 상태만 직관적으로 보여주기 위한 이모지"""
     if code == 0: return "☀️ 맑음"
     if 1 <= code <= 3: return "☁️ 흐림/구름"
     if code in [45, 48]: return "🌫️ 안개"
     if 51 <= code <= 67: return "☔ 비/이슬비"
     if 71 <= code <= 77: return "❄️ 눈 소식"
     if code >= 95: return "⚡ 천둥번개"
-    return "🌈 날씨 확인"
+    return "🌈 날씨 확인 필요"
 
 def send_telegram():
     try:
         t_max, t_min, y_max, y_min, w_code = get_weather_info()
         weather_desc = get_weather_emoji(w_code)
         
+        # 오늘 날짜
         now_date = datetime.datetime.now().strftime('%m월 %d일')
         
-        # 메시지 디자인 업그레이드
+        # 메시지 구성 (이모지 최소화, 텍스트 강조)
         msg = f"🔔 [{now_date} 날씨 리포트]\n"
-        msg += f"오늘의 날씨: {weather_desc}\n"
+        msg += f"날씨 상태: {weather_desc}\n"
         msg += "----------------------------\n"
-        msg += f"🔺 최고: {t_max}°C (어제보다 {t_max-y_max:+.1f})\n"
-        msg += f"🔻 최저: {t_min}°C (어제보다 {t_min-y_min:+.1f})\n\n"
+        msg += f"최고 기온: {t_max}°C (어제보다 {t_max-y_max:+.1f})\n"
+        msg += f"최저 기온: {t_min}°C (어제보다 {t_min-y_min:+.1f})\n\n"
         
-        # 기온 차이에 따른 멘트 추가
+        # 기온 차이에 따른 멘트 (이모지 삭제)
         diff = t_max - y_max
-        if diff > 2: msg += "🧥 어제보다 따뜻함! 가볍게 입으셈."
-        elif diff < -2: msg += "🧣 어제보다 추워짐! 든든하게 입으셈."
-        else: msg += "👔 어제와 비슷하니 평소처럼 입으셈."
+        if diff > 2: 
+            msg += "추천: 어제보다 따뜻함. 가볍게 입으셈."
+        elif diff < -2: 
+            msg += "추천: 어제보다 꽤 추워짐. 든든하게 입으셈."
+        else: 
+            msg += "추천: 어제와 비슷하니 평소처럼 입으셈."
 
         token = os.environ.get('TELEGRAM_TOKEN', '').strip()
         chat_id = os.environ.get('CHAT_ID', '').strip()

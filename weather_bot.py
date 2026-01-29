@@ -4,7 +4,6 @@ import os
 import time
 
 def get_weather_info():
-    # 서울 좌표
     lat, lon = 37.5665, 126.978
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FSeoul&past_days=1"
     
@@ -14,11 +13,8 @@ def get_weather_info():
             res.raise_for_status()
             daily_data = res.json()['daily']
             
-            # 기온 데이터 (0:어제, 1:오늘)
             y_max, y_min = daily_data['temperature_2m_max'][0], daily_data['temperature_2m_min'][0]
             t_max, t_min = daily_data['temperature_2m_max'][1], daily_data['temperature_2m_min'][1]
-            
-            # 오늘 날씨 코드 (인덱스 1)
             w_code = daily_data['weather_code'][1]
             
             return t_max, t_min, y_max, y_min, w_code
@@ -27,7 +23,6 @@ def get_weather_info():
             else: raise e
 
 def get_weather_emoji(code):
-    """날씨 상태만 직관적으로 보여주기 위한 이모지"""
     if code == 0: return "☀️ 맑음"
     if 1 <= code <= 3: return "☁️ 흐림/구름"
     if code in [45, 48]: return "🌫️ 안개"
@@ -41,34 +36,27 @@ def send_telegram():
         t_max, t_min, y_max, y_min, w_code = get_weather_info()
         weather_desc = get_weather_emoji(w_code)
         
-        # 오늘 날짜
-        now_date = datetime.datetime.now().strftime('%m월 %d일')
+        # --- [수정된 부분] 한국 시간대(KST) 강제 설정 ---
+        KST = datetime.timezone(datetime.timedelta(hours=9))
+        now_date = datetime.datetime.now(KST).strftime('%m월 %d일')
+        # ----------------------------------------------
         
-        # 메시지 구성 (이모지 최소화, 텍스트 강조)
         msg = f"🔔 [{now_date} 날씨 리포트]\n"
         msg += f"날씨 상태: {weather_desc}\n"
         msg += "----------------------------\n"
         msg += f"최고 기온: {t_max}°C (어제보다 {t_max-y_max:+.1f})\n"
         msg += f"최저 기온: {t_min}°C (어제보다 {t_min-y_min:+.1f})\n\n"
         
-        # 기온 차이에 따른 멘트 (이모지 삭제)
         diff = t_max - y_max
-        if diff > 2: 
-            msg += "추천: 어제보다 따뜻함. 가볍게 입으셈."
-        elif diff < -2: 
-            msg += "추천: 어제보다 꽤 추워짐. 든든하게 입으셈."
-        else: 
-            msg += "추천: 어제와 비슷하니 평소처럼 입으셈."
+        if diff > 2: msg += "추천: 어제보다 따뜻함. 가볍게 입으셈."
+        elif diff < -2: msg += "추천: 어제보다 꽤 추워짐. 든든하게 입으셈."
+        else: msg += "추천: 어제와 비슷하니 평소처럼 입으셈."
 
         token = os.environ.get('TELEGRAM_TOKEN', '').strip()
         chat_id = os.environ.get('CHAT_ID', '').strip()
         
         telegram_url = f"https://api.telegram.org/bot{token}/sendMessage"
-        response = requests.post(telegram_url, json={"chat_id": chat_id, "text": msg})
-        
-        if response.status_code != 200:
-            print(f"❌ 에러 내용: {response.text}")
-        response.raise_for_status()
+        requests.post(telegram_url, json={"chat_id": chat_id, "text": msg})
         print("✅ 전송 성공!")
 
     except Exception as e:
